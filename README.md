@@ -22,5 +22,7 @@ The dataset used in this project is [Amazon product dataset from Kaggle](https:/
 
 #### Demostration
 ![Streamlit Application](img/StreamlitApp.PNG "Streamlit Application")
+![ChatGPT](img/chatgpt.PNG "ChatGPT")
 ![Nifi Pipeline](img/nifi.PNG "Nifi Pipeline")
+
 
