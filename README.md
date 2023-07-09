@@ -13,10 +13,12 @@ It uses ChatGPT to recommend product based on trending item. The application is 
 
 ![Project Architecture](img/Architecture.PNG "Project Architecture")
 
+---
+
 #### Dataset Used
 The dataset used in this project is [Amazon product dataset from Kaggle](https://www.kaggle.com/datasets/lokeshparab/amazon-products-dataset).
 
-<br>
+---
 
 #### Demostration
 ![Streamlit Application](img/StreamlitApp.PNG "Streamlit Application")
