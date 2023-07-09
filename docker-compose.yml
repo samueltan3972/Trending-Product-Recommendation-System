@@ -1,0 +1,169 @@
+version: '3'
+
+volumes:
+  bigdata:
+  mysql:
+  namenode:
+  datanode:
+  nifi:
+
+services:
+  mysql:
+    image: mysql:latest
+    restart: always
+    ports:
+      - 3306:3306
+    volumes:
+      - mysql:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+
+  mongo:
+    image: mongo:4.4.18
+    container_name: mongo
+    restart: always
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - bigdata:/data/db
+
+  mongo-express:
+    image: mongo-express
+    container_name: mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=root
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=password
+      - ME_CONFIG_MONGODB_URL=mongodb://root:password@mongo:27017/?authSource=admin
+      - ME_CONFIG_BASICAUTH_USERNAME=mexpress
+      - ME_CONFIG_BASICAUTH_PASSWORD=mexpress
+    links:
+      - mongo
+    restart: always
+    ports:
+      - 8081:8081
+
+  jupyterlab:
+    image: jupyter/all-spark-notebook:lab-3.6.3
+    restart: always
+    ports:
+      - 8888:8888
+    volumes:
+      - bigdata:/home/jovyan/work
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    ports:
+      - 9443:9443
+    volumes:
+        - bigdata:/data
+        - /var/run/docker.sock:/var/run/docker.sock
+    restart: always
+  
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
+    volumes:
+      - namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "50000:50070"
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    volumes:
+      - datanode:/hadoop/dfs/data
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070"
+    ports:
+      - "50001:50075"
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    ports:
+      - "10000:10000"
+      - "10002:10002"
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    env_file:
+      - ./hadoop-hive.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 hive-metastore-postgresql:5432"
+    ports:
+      - "9083:9083"
+
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+
+  presto-coordinator:
+    image: shawnzhu/prestodb:0.181
+    ports:
+      - "8080:8080"
+
+  hue:
+      image: gethue/hue:latest
+      hostname: hue
+      container_name: hue
+      dns: 8.8.8.8
+      ports:
+      - "8889:8888"
+      volumes:
+        - ./hue.ini:/usr/share/hue/desktop/conf/hue.ini
+      depends_on:
+      - "hive-server"
+      - "namenode"
+
+  nifi-toolkit:
+    image: apache/nifi-toolkit:latest
+    container_name: nifi-toolkit
+    volumes:
+      - nifi:/opt/certs
+    user: root
+    entrypoint: ["bash", "-c", "/opt/nifi-toolkit/*/bin/tls-toolkit.sh standalone -o /opt/certs -n nifi -c nifi.url.com:8080 -P supersecrettruststore -K supersecretkeystore -S supersecretkeystore; chown -R nifi:nifi /opt/certs; ls /opt/certs/nifi"]
+
+  nifi:
+    image: apache/nifi:1.13.2
+    container_name: nifi
+    restart: always
+    ports:
+      - 8443:8443
+      - 9000:8080
+    environment:
+      NIFI_WEB_HTTPS_HOST: '0.0.0.0'
+      NIFI_WEB_HTTP_HOST: '0.0.0.0'
+    volumes:
+      - nifi:/opt/nifi/nifi-current/database_repository
+      - nifi:/opt/nifi/nifi-current/flowfile_repository
+      - nifi:/opt/nifi/nifi-current/content_repository
+      - nifi:/opt/nifi/nifi-current/provenance_repository
+      - nifi:/opt/nifi/nifi-current/state
+      - nifi:/opt/nifi/nifi-current/logs
+      - nifi:/opt/certs
+    
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    links:
+      - mysql
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+    restart: always
+    ports:
+      - 8082:80
